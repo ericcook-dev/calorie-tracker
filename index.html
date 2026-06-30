@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Calorie Tracker</title>
+<meta name="theme-color" content="#0d0d0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Calories">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0d0d0f;
+    --card: #18181b;
+    --border: #2a2a2e;
+    --text: #f2f2f3;
+    --muted: #8b8b92;
+    --accent: #34c759;
+    --warn: #ffb340;
+    --danger: #ff453a;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    overscroll-behavior-y: none;
+  }
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: calc(env(safe-area-inset-top) + 10px) 16px 8px;
+  }
+  .tabs { display: flex; gap: 6px; background: var(--card); padding: 4px; border-radius: 10px; }
+  .tab {
+    border: none; background: transparent; color: var(--muted);
+    font-size: 14px; font-weight: 600; padding: 6px 14px; border-radius: 8px;
+  }
+  .tab.active { background: var(--accent); color: #04210c; }
+  .icon-btn {
+    border: none; background: var(--card); color: var(--text);
+    width: 38px; height: 38px; border-radius: 10px; font-size: 18px;
+  }
+  .view { flex: 1; overflow-y: auto; padding: 0 16px; -webkit-overflow-scrolling: touch; }
+  .view.hidden { display: none; }
+
+  .total-block { text-align: center; padding: 8px 0 14px; }
+  .total-num { font-size: 56px; font-weight: 700; line-height: 1; letter-spacing: -1px; }
+  .total-sub { color: var(--muted); font-size: 14px; margin-top: 2px; }
+  .date-label { color: var(--muted); font-size: 13px; margin-bottom: 2px; }
+
+  .progress-wrap { margin: 10px 0 4px; }
+  .progress-wrap.hidden { display: none; }
+  .progress-track { height: 8px; background: var(--card); border-radius: 4px; overflow: hidden; }
+  .progress-bar { height: 100%; background: var(--accent); border-radius: 4px; transition: width .2s ease; }
+  .progress-bar.warn { background: var(--warn); }
+  .progress-bar.over { background: var(--danger); }
+  .progress-label { text-align: center; font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  ul { list-style: none; margin: 0; padding: 0; }
+  .entries-list { margin-top: 8px; padding-bottom: 12px; }
+  .entry {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--card); border-radius: 12px; padding: 12px 12px;
+    margin-bottom: 8px;
+  }
+  .entry-cal { font-weight: 700; font-size: 16px; min-width: 52px; }
+  .entry-name { flex: 1; color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .entry-time { color: var(--muted); font-size: 12px; }
+  .entry-del {
+    border: none; background: transparent; color: var(--muted);
+    font-size: 20px; width: 32px; height: 32px; line-height: 1;
+  }
+  .empty { color: var(--muted); text-align: center; padding: 24px 0; font-size: 14px; }
+
+  .add-bar {
+    display: flex; gap: 8px; padding: 10px 16px calc(env(safe-area-inset-bottom) + 10px);
+    background: var(--bg); border-top: 1px solid var(--border);
+  }
+  .add-bar input {
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+    border-radius: 12px; padding: 14px; font-size: 17px; min-width: 0;
+  }
+  .add-bar input#calInput { width: 38%; font-weight: 700; }
+  .add-bar input#nameInput { flex: 1; }
+  .add-bar input.invalid { border-color: var(--danger); }
+  .add-bar button {
+    border: none; background: var(--accent); color: #04210c;
+    font-weight: 700; font-size: 17px; padding: 0 18px; border-radius: 12px;
+  }
+
+  .history-day { background: var(--card); border-radius: 12px; margin: 10px 0; overflow: hidden; }
+  .history-header {
+    display: flex; justify-content: space-between; padding: 14px;
+    font-weight: 600; font-size: 15px;
+  }
+  .history-entries { padding: 0 14px 12px; }
+  .history-entries.hidden { display: none; }
+  .history-entries li {
+    display: flex; gap: 10px; font-size: 13px; color: var(--muted);
+    padding: 4px 0; border-top: 1px solid var(--border);
+  }
+  .history-entries li span:first-child { font-weight: 600; color: var(--text); min-width: 44px; }
+  .history-entries li span:nth-child(2) { flex: 1; }
+
+  .backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 5;
+  }
+  .backdrop.hidden { display: none; }
+  .settings-panel {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
+    background: var(--card); border-radius: 16px 16px 0 0;
+    padding: 16px 16px calc(env(safe-area-inset-bottom) + 16px);
+  }
+  .settings-panel.hidden { display: none; }
+  .settings-header {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 16px; font-weight: 700; margin-bottom: 14px;
+  }
+  .settings-header button { border: none; background: transparent; color: var(--accent); font-size: 16px; font-weight: 600; }
+  .settings-panel label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+  .settings-panel input[type=number] {
+    display: block; width: 100%; margin-top: 6px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+    border-radius: 10px; padding: 12px; font-size: 16px;
+  }
+  .backup-row { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+  .backup-status.warn { color: var(--warn); }
+  .settings-buttons { display: flex; gap: 10px; }
+  .btn {
+    flex: 1; border: none; border-radius: 10px; padding: 13px; font-size: 15px; font-weight: 600;
+    background: var(--accent); color: #04210c;
+  }
+  .btn.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+  .hidden { display: none; }
+
+  .toast {
+    position: fixed; left: 16px; right: 16px; bottom: 90px; z-index: 7;
+    background: #2a2a2e; border-radius: 12px; padding: 12px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+    transform: translateY(120px); opacity: 0; transition: all .25s ease;
+    pointer-events: none;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; pointer-events: auto; }
+  .toast button { border: none; background: transparent; color: var(--accent); font-weight: 700; font-size: 14px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="tabs">
+      <button id="tabToday" class="tab active">Today</button>
+      <button id="tabHistory" class="tab">History</button>
+    </div>
+    <button id="gearBtn" class="icon-btn" aria-label="Settings">&#9881;</button>
+  </header>
+
+  <main id="todayView" class="view">
+    <div class="total-block">
+      <div class="date-label" id="dateLabel">Today</div>
+      <div class="total-num" id="totalNum">0</div>
+      <div class="total-sub">calories today</div>
+      <div class="progress-wrap hidden" id="progressWrap">
+        <div class="progress-track"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+        <div class="progress-label" id="progressLabel"></div>
+      </div>
+    </div>
+    <ul class="entries-list" id="entriesList"></ul>
+  </main>
+
+  <main id="historyView" class="view hidden">
+    <ul id="historyList" style="margin-top:14px"></ul>
+  </main>
+
+  <form class="add-bar" id="addBar">
+    <input id="calInput" type="number" inputmode="decimal" placeholder="Calories" required>
+    <input id="nameInput" type="text" placeholder="What (optional)" autocomplete="off">
+    <button type="submit">Add</button>
+  </form>
+</div>
+
+<div class="backdrop hidden" id="settingsBackdrop"></div>
+<div class="settings-panel hidden" id="settingsPanel">
+  <div class="settings-header"><span>Settings</span><button id="closeSettings">Done</button></div>
+  <label>Daily goal (calories)
+    <input id="goalInput" type="number" inputmode="numeric" placeholder="No goal set">
+  </label>
+  <div class="backup-row" id="backupStatus">No backup yet</div>
+  <div class="settings-buttons">
+    <button type="button" class="btn" id="exportBtn">Export Backup</button>
+    <button type="button" class="btn secondary" id="importBtn">Import Backup</button>
+  </div>
+  <input type="file" id="fileInput" accept="application/json" class="hidden">
+</div>
+
+<div class="toast" id="toast">
+  <span class="toast-msg"></span>
+  <button id="undoBtn" type="button">Undo</button>
+</div>
+
+<script>
+const STORAGE_KEY = 'calorieTrackerData';
+
+function uuid() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// "Today" ends at 2am America/New_York, not midnight, so late-night snacks
+// still count toward the day that's ending instead of starting a new one.
+function getLogicalDateNY(now) {
+  now = now || new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', hour12: false
+  }).formatToParts(now);
+  const map = {};
+  parts.forEach(p => map[p.type] = p.value);
+  let hour = parseInt(map.hour, 10);
+  if (hour === 24) hour = 0;
+  const d = new Date(Number(map.year), Number(map.month) - 1, Number(map.day));
+  if (hour < 2) d.setDate(d.getDate() - 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+function defaultState() {
+  return {
+    currentDay: { date: getLogicalDateNY(), entries: [] },
+    history: [],
+    settings: { dailyGoal: null, lastBackup: null }
+  };
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultState();
+    const parsed = JSON.parse(raw);
+    if (!parsed.currentDay || !parsed.history || !parsed.settings) return defaultState();
+    return parsed;
+  } catch (e) {
+    return defaultState();
+  }
+}
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+let state = load();
+let pendingDelete = null;
+let pendingDeleteTimeout = null;
+
+function checkRollover() {
+  const logical = getLogicalDateNY();
+  if (state.currentDay.date === logical) return;
+  if (state.currentDay.entries.length > 0) {
+    const total = state.currentDay.entries.reduce((s, e) => s + e.calories, 0);
+    state.history.unshift({ date: state.currentDay.date, total, entries: state.currentDay.entries });
+  }
+  state.currentDay = { date: logical, entries: [] };
+  save();
+}
+
+function addEntry(e) {
+  e.preventDefault();
+  checkRollover();
+  const calInput = document.getElementById('calInput');
+  const nameInput = document.getElementById('nameInput');
+  const calories = parseFloat(calInput.value);
+  if (!calories || calories <= 0) {
+    calInput.classList.add('invalid');
+    setTimeout(() => calInput.classList.remove('invalid'), 600);
+    return;
+  }
+  state.currentDay.entries.push({
+    id: uuid(),
+    name: nameInput.value.trim(),
+    calories: Math.round(calories * 10) / 10,
+    createdAt: Date.now()
+  });
+  save();
+  calInput.value = '';
+  nameInput.value = '';
+  renderToday();
+  calInput.focus();
+}
+
+function deleteEntry(id) {
+  const idx = state.currentDay.entries.findIndex(e => e.id === id);
+  if (idx === -1) return;
+  const [removed] = state.currentDay.entries.splice(idx, 1);
+  pendingDelete = removed;
+  save();
+  renderToday();
+  showUndoToast(removed);
+}
+
+function showUndoToast(entry) {
+  clearTimeout(pendingDeleteTimeout);
+  const toast = document.getElementById('toast');
+  toast.querySelector('.toast-msg').textContent = `Deleted ${entry.calories.toLocaleString()} cal`;
+  toast.classList.add('show');
+  pendingDeleteTimeout = setTimeout(() => {
+    toast.classList.remove('show');
+    pendingDelete = null;
+  }, 5000);
+}
+
+function undoDelete() {
+  if (!pendingDelete) return;
+  state.currentDay.entries.push(pendingDelete);
+  pendingDelete = null;
+  clearTimeout(pendingDeleteTimeout);
+  document.getElementById('toast').classList.remove('show');
+  save();
+  renderToday();
+}
+
+function formatHistoryDate(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function renderEntries() {
+  const list = document.getElementById('entriesList');
+  list.innerHTML = '';
+  const entries = [...state.currentDay.entries].sort((a, b) => b.createdAt - a.createdAt);
+  if (entries.length === 0) {
+    list.innerHTML = '<li class="empty">No entries yet today</li>';
+    return;
+  }
+  for (const entry of entries) {
+    const li = document.createElement('li');
+    li.className = 'entry';
+    const time = new Date(entry.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    li.innerHTML = `
+      <span class="entry-cal">${entry.calories.toLocaleString()}</span>
+      <span class="entry-name">${escapeHtml(entry.name) || '&mdash;'}</span>
+      <span class="entry-time">${time}</span>
+      <button class="entry-del" type="button" aria-label="Delete entry">&times;</button>
+    `;
+    li.querySelector('.entry-del').addEventListener('click', () => deleteEntry(entry.id));
+    list.appendChild(li);
+  }
+}
+
+function renderToday() {
+  document.getElementById('dateLabel').textContent = 'Today · ' + formatHistoryDate(state.currentDay.date);
+  const total = state.currentDay.entries.reduce((s, e) => s + e.calories, 0);
+  document.getElementById('totalNum').textContent = Math.round(total).toLocaleString();
+
+  const goal = state.settings.dailyGoal;
+  const progressWrap = document.getElementById('progressWrap');
+  if (goal) {
+    progressWrap.classList.remove('hidden');
+    const pct = Math.min(total / goal, 1) * 100;
+    const bar = document.getElementById('progressBar');
+    bar.style.width = pct + '%';
+    bar.className = 'progress-bar' + (total > goal ? ' over' : pct >= 90 ? ' warn' : '');
+    const remaining = goal - total;
+    document.getElementById('progressLabel').textContent = remaining >= 0
+      ? `${Math.round(remaining).toLocaleString()} left`
+      : `${Math.round(-remaining).toLocaleString()} over`;
+  } else {
+    progressWrap.classList.add('hidden');
+  }
+  renderEntries();
+}
+
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  list.innerHTML = '';
+  if (state.history.length === 0) {
+    list.innerHTML = '<li class="empty">No past days yet</li>';
+    return;
+  }
+  for (const day of state.history) {
+    const li = document.createElement('li');
+    li.className = 'history-day';
+    const header = document.createElement('div');
+    header.className = 'history-header';
+    header.innerHTML = `<span>${formatHistoryDate(day.date)}</span><span>${Math.round(day.total).toLocaleString()} cal</span>`;
+    const details = document.createElement('ul');
+    details.className = 'history-entries hidden';
+    details.innerHTML = day.entries
+      .slice()
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map(e => `<li><span>${e.calories.toLocaleString()}</span><span>${escapeHtml(e.name) || '&mdash;'}</span><span>${new Date(e.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span></li>`)
+      .join('');
+    header.addEventListener('click', () => details.classList.toggle('hidden'));
+    li.appendChild(header);
+    li.appendChild(details);
+    list.appendChild(li);
+  }
+}
+
+function renderBackupStatus() {
+  const el = document.getElementById('backupStatus');
+  const last = state.settings.lastBackup;
+  if (!last) {
+    el.textContent = 'No backup yet';
+    el.className = 'backup-row warn';
+  } else {
+    const days = Math.floor((Date.now() - last) / 86400000);
+    if (days <= 0) {
+      el.textContent = 'Backed up today';
+      el.className = 'backup-row';
+    } else {
+      el.textContent = `Last backup: ${days} day${days === 1 ? '' : 's'} ago`;
+      el.className = 'backup-row' + (days >= 7 ? ' warn' : '');
+    }
+  }
+}
+
+function renderAll() {
+  renderToday();
+  renderHistory();
+  renderBackupStatus();
+  document.getElementById('goalInput').value = state.settings.dailyGoal || '';
+}
+
+async function exportBackup() {
+  const data = JSON.stringify(state, null, 2);
+  const filename = `calorie-tracker-backup-${state.currentDay.date}.json`;
+  const file = new File([data], filename, { type: 'application/json' });
+
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: 'Calorie Tracker Backup' });
+      markBackedUp();
+      return;
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+    }
+  }
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  markBackedUp();
+}
+
+function markBackedUp() {
+  state.settings.lastBackup = Date.now();
+  save();
+  renderBackupStatus();
+}
+
+function handleImport(e) {
+  const fileInput = e.target;
+  const file = fileInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      if (!parsed.currentDay || !Array.isArray(parsed.history) || !parsed.settings) {
+        throw new Error('Invalid backup file');
+      }
+      if (!confirm('Replace all current data with this backup? This cannot be undone.')) {
+        fileInput.value = '';
+        return;
+      }
+      state = parsed;
+      checkRollover();
+      save();
+      renderAll();
+    } catch (err) {
+      alert('Could not read that backup file.');
+    } finally {
+      fileInput.value = '';
+    }
+  };
+  reader.readAsText(file);
+}
+
+function switchTab(tab) {
+  const today = tab === 'today';
+  document.getElementById('todayView').classList.toggle('hidden', !today);
+  document.getElementById('historyView').classList.toggle('hidden', today);
+  document.getElementById('addBar').classList.toggle('hidden', !today);
+  document.getElementById('tabToday').classList.toggle('active', today);
+  document.getElementById('tabHistory').classList.toggle('active', !today);
+  if (!today) renderHistory();
+}
+
+function toggleSettings(show) {
+  document.getElementById('settingsPanel').classList.toggle('hidden', !show);
+  document.getElementById('settingsBackdrop').classList.toggle('hidden', !show);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  checkRollover();
+  renderAll();
+
+  document.getElementById('addBar').addEventListener('submit', addEntry);
+  document.getElementById('undoBtn').addEventListener('click', undoDelete);
+  document.getElementById('gearBtn').addEventListener('click', () => toggleSettings(true));
+  document.getElementById('closeSettings').addEventListener('click', () => toggleSettings(false));
+  document.getElementById('settingsBackdrop').addEventListener('click', () => toggleSettings(false));
+  document.getElementById('tabToday').addEventListener('click', () => switchTab('today'));
+  document.getElementById('tabHistory').addEventListener('click', () => switchTab('history'));
+
+  document.getElementById('goalInput').addEventListener('change', (e) => {
+    const v = parseInt(e.target.value, 10);
+    state.settings.dailyGoal = (v && v > 0) ? v : null;
+    save();
+    renderToday();
+  });
+
+  document.getElementById('exportBtn').addEventListener('click', exportBackup);
+  document.getElementById('importBtn').addEventListener('click', () => document.getElementById('fileInput').click());
+  document.getElementById('fileInput').addEventListener('change', handleImport);
+
+  setInterval(() => { checkRollover(); renderToday(); }, 60 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      checkRollover();
+      renderAll();
+    }
+  });
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+});
+</script>
+</body>
+</html>
