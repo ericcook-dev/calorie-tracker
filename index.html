@@ -20,6 +20,7 @@
     --text: #f2f2f3;
     --muted: #8b8b92;
     --accent: #34c759;
+    --protein: #4da3ff;
     --warn: #ffb340;
     --danger: #ff453a;
   }
@@ -59,6 +60,7 @@
   .total-block { text-align: center; padding: 8px 0 14px; }
   .total-num { font-size: 56px; font-weight: 700; line-height: 1; letter-spacing: -1px; }
   .total-sub { color: var(--muted); font-size: 14px; margin-top: 2px; }
+  .protein-sub { color: var(--protein); font-size: 13px; margin-top: 4px; font-weight: 600; }
   .date-label { color: var(--muted); font-size: 13px; margin-bottom: 2px; }
 
   .progress-wrap { margin: 10px 0 4px; }
@@ -74,9 +76,11 @@
   .entry {
     display: flex; align-items: center; gap: 10px;
     background: var(--card); border-radius: 12px; padding: 12px 12px;
-    margin-bottom: 8px;
+    margin-bottom: 8px; cursor: pointer;
   }
-  .entry-cal { font-weight: 700; font-size: 16px; min-width: 52px; }
+  .entry:active { background: #222226; }
+  .entry-amount { font-weight: 700; font-size: 16px; min-width: 56px; }
+  .entry-amount.protein { color: var(--protein); }
   .entry-name { flex: 1; color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .entry-time { color: var(--muted); font-size: 12px; }
   .entry-del {
@@ -85,17 +89,25 @@
   }
   .empty { color: var(--muted); text-align: center; padding: 24px 0; font-size: 14px; }
 
-  .add-bar {
-    display: flex; gap: 8px; padding: 10px 16px calc(env(safe-area-inset-bottom) + 10px);
+  .bottom-bar {
+    padding: 8px 16px calc(env(safe-area-inset-bottom) + 10px);
     background: var(--bg); border-top: 1px solid var(--border);
   }
+  .mode-toggle { display: flex; gap: 6px; margin-bottom: 8px; }
+  .mode-btn {
+    flex: 1; border: none; background: var(--card); color: var(--muted);
+    font-size: 13px; font-weight: 600; padding: 8px; border-radius: 8px;
+  }
+  .mode-btn.active { background: var(--accent); color: #04210c; }
+  .mode-btn#modePro.active { background: var(--protein); color: #04223f; }
+  .add-bar { display: flex; gap: 8px; }
   .add-bar input {
     border: 1px solid var(--border); background: var(--card); color: var(--text);
     border-radius: 12px; padding: 14px; font-size: 17px; min-width: 0;
   }
-  .add-bar input#calInput { width: 38%; font-weight: 700; }
+  .add-bar input#amountInput { width: 38%; font-weight: 700; }
   .add-bar input#nameInput { flex: 1; }
-  .add-bar input.invalid { border-color: var(--danger); }
+  input.invalid { border-color: var(--danger); }
   .add-bar button {
     border: none; background: var(--accent); color: #04210c;
     font-weight: 700; font-size: 17px; padding: 0 18px; border-radius: 12px;
@@ -104,7 +116,7 @@
   .history-day { background: var(--card); border-radius: 12px; margin: 10px 0; overflow: hidden; }
   .history-header {
     display: flex; justify-content: space-between; padding: 14px;
-    font-weight: 600; font-size: 15px;
+    font-weight: 600; font-size: 15px; gap: 10px;
   }
   .history-entries { padding: 0 14px 12px; }
   .history-entries.hidden { display: none; }
@@ -112,7 +124,8 @@
     display: flex; gap: 10px; font-size: 13px; color: var(--muted);
     padding: 4px 0; border-top: 1px solid var(--border);
   }
-  .history-entries li span:first-child { font-weight: 600; color: var(--text); min-width: 44px; }
+  .history-entries li span:first-child { font-weight: 600; color: var(--text); min-width: 48px; }
+  .history-entries li span.protein { color: var(--protein); }
   .history-entries li span:nth-child(2) { flex: 1; }
 
   .backdrop {
@@ -131,7 +144,7 @@
   }
   .settings-header button { border: none; background: transparent; color: var(--accent); font-size: 16px; font-weight: 600; }
   .settings-panel label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 16px; }
-  .settings-panel input[type=number] {
+  .settings-panel input[type=number], .settings-panel input[type=text] {
     display: block; width: 100%; margin-top: 6px;
     border: 1px solid var(--border); background: var(--bg); color: var(--text);
     border-radius: 10px; padding: 12px; font-size: 16px;
@@ -144,6 +157,7 @@
     background: var(--accent); color: #04210c;
   }
   .btn.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+  .btn.danger { background: var(--bg); color: var(--danger); border: 1px solid var(--border); }
   .hidden { display: none; }
 
   .toast {
@@ -172,6 +186,7 @@
       <div class="date-label" id="dateLabel">Today</div>
       <div class="total-num" id="totalNum">0</div>
       <div class="total-sub">calories today</div>
+      <div class="protein-sub" id="proteinTotal">0g protein today</div>
       <div class="progress-wrap hidden" id="progressWrap">
         <div class="progress-track"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
         <div class="progress-label" id="progressLabel"></div>
@@ -184,16 +199,23 @@
     <ul id="historyList" style="margin-top:14px"></ul>
   </main>
 
-  <form class="add-bar" id="addBar">
-    <input id="calInput" type="number" inputmode="decimal" placeholder="Calories" required>
-    <input id="nameInput" type="text" placeholder="What (optional)" autocomplete="off">
-    <button type="submit">Add</button>
-  </form>
+  <div class="bottom-bar" id="bottomBar">
+    <div class="mode-toggle">
+      <button type="button" id="modeCal" class="mode-btn active">Calories</button>
+      <button type="button" id="modePro" class="mode-btn">Protein</button>
+    </div>
+    <form class="add-bar" id="addBar">
+      <input id="amountInput" type="number" inputmode="decimal" placeholder="Calories" required>
+      <input id="nameInput" type="text" placeholder="What (optional)" autocomplete="off">
+      <button type="submit">Add</button>
+    </form>
+  </div>
 </div>
 
-<div class="backdrop hidden" id="settingsBackdrop"></div>
+<div class="backdrop hidden" id="backdrop"></div>
+
 <div class="settings-panel hidden" id="settingsPanel">
-  <div class="settings-header"><span>Settings</span><button id="closeSettings">Done</button></div>
+  <div class="settings-header"><span>Settings</span><button type="button" id="closeSettings">Done</button></div>
   <label>Daily goal (calories)
     <input id="goalInput" type="number" inputmode="numeric" placeholder="No goal set">
   </label>
@@ -203,6 +225,20 @@
     <button type="button" class="btn secondary" id="importBtn">Import Backup</button>
   </div>
   <input type="file" id="fileInput" accept="application/json" class="hidden">
+</div>
+
+<div class="settings-panel hidden" id="editPanel">
+  <div class="settings-header"><span>Edit Entry</span><button type="button" id="closeEdit">Cancel</button></div>
+  <label>Amount (<span id="editUnitLabel">calories</span>)
+    <input id="editAmount" type="number" inputmode="decimal">
+  </label>
+  <label>Name
+    <input id="editName" type="text" placeholder="Optional">
+  </label>
+  <div class="settings-buttons">
+    <button type="button" class="btn" id="saveEdit">Save</button>
+    <button type="button" class="btn danger" id="deleteEditBtn">Delete</button>
+  </div>
 </div>
 
 <div class="toast" id="toast">
@@ -257,13 +293,26 @@ function defaultState() {
   };
 }
 
+// Backups/entries created before protein support stored {calories} with no
+// type; treat anything missing a type as a calorie entry under the new shape.
+function migrateEntry(e) {
+  if (e.type) return e;
+  return { id: e.id, type: 'calories', amount: e.calories, name: e.name, createdAt: e.createdAt };
+}
+
+function migrateState(s) {
+  s.currentDay.entries = s.currentDay.entries.map(migrateEntry);
+  s.history.forEach((day) => { day.entries = day.entries.map(migrateEntry); });
+  return s;
+}
+
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultState();
     const parsed = JSON.parse(raw);
     if (!parsed.currentDay || !parsed.history || !parsed.settings) return defaultState();
-    return parsed;
+    return migrateState(parsed);
   } catch (e) {
     return defaultState();
   }
@@ -273,43 +322,64 @@ function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+function dayTotals(entries) {
+  let calories = 0, protein = 0;
+  for (const e of entries) {
+    if (e.type === 'protein') protein += e.amount;
+    else calories += e.amount;
+  }
+  return { calories, protein };
+}
+
 let state = load();
+let currentMode = 'calories';
 let pendingDelete = null;
 let pendingDeleteTimeout = null;
+let editingEntryId = null;
+let openPanelEl = null;
 
 function checkRollover() {
   const logical = getLogicalDateNY();
   if (state.currentDay.date === logical) return;
   if (state.currentDay.entries.length > 0) {
-    const total = state.currentDay.entries.reduce((s, e) => s + e.calories, 0);
-    state.history.unshift({ date: state.currentDay.date, total, entries: state.currentDay.entries });
+    state.history.unshift({ date: state.currentDay.date, entries: state.currentDay.entries });
   }
   state.currentDay = { date: logical, entries: [] };
   save();
 }
 
+function setMode(mode) {
+  currentMode = mode;
+  const isCal = mode === 'calories';
+  document.getElementById('modeCal').classList.toggle('active', isCal);
+  document.getElementById('modePro').classList.toggle('active', !isCal);
+  const amountInput = document.getElementById('amountInput');
+  amountInput.placeholder = isCal ? 'Calories' : 'Protein (g)';
+}
+
 function addEntry(e) {
   e.preventDefault();
   checkRollover();
-  const calInput = document.getElementById('calInput');
+  const amountInput = document.getElementById('amountInput');
   const nameInput = document.getElementById('nameInput');
-  const calories = parseFloat(calInput.value);
-  if (!calories || calories <= 0) {
-    calInput.classList.add('invalid');
-    setTimeout(() => calInput.classList.remove('invalid'), 600);
+  const amount = parseFloat(amountInput.value);
+  if (!amount || amount <= 0) {
+    amountInput.classList.add('invalid');
+    setTimeout(() => amountInput.classList.remove('invalid'), 600);
     return;
   }
   state.currentDay.entries.push({
     id: uuid(),
+    type: currentMode,
     name: nameInput.value.trim(),
-    calories: Math.round(calories * 10) / 10,
+    amount: Math.round(amount * 10) / 10,
     createdAt: Date.now()
   });
   save();
-  calInput.value = '';
+  amountInput.value = '';
   nameInput.value = '';
   renderToday();
-  calInput.focus();
+  amountInput.focus();
 }
 
 function deleteEntry(id) {
@@ -325,7 +395,8 @@ function deleteEntry(id) {
 function showUndoToast(entry) {
   clearTimeout(pendingDeleteTimeout);
   const toast = document.getElementById('toast');
-  toast.querySelector('.toast-msg').textContent = `Deleted ${entry.calories.toLocaleString()} cal`;
+  const label = entry.type === 'protein' ? `${entry.amount.toLocaleString()}g protein` : `${entry.amount.toLocaleString()} cal`;
+  toast.querySelector('.toast-msg').textContent = `Deleted ${label}`;
   toast.classList.add('show');
   pendingDeleteTimeout = setTimeout(() => {
     toast.classList.remove('show');
@@ -341,6 +412,52 @@ function undoDelete() {
   document.getElementById('toast').classList.remove('show');
   save();
   renderToday();
+}
+
+function openSheet(panelEl) {
+  document.getElementById('settingsPanel').classList.add('hidden');
+  document.getElementById('editPanel').classList.add('hidden');
+  panelEl.classList.remove('hidden');
+  document.getElementById('backdrop').classList.remove('hidden');
+  openPanelEl = panelEl;
+}
+
+function closeSheet() {
+  if (openPanelEl) openPanelEl.classList.add('hidden');
+  document.getElementById('backdrop').classList.add('hidden');
+  openPanelEl = null;
+}
+
+function openEdit(id) {
+  const entry = state.currentDay.entries.find(e => e.id === id);
+  if (!entry) return;
+  editingEntryId = id;
+  document.getElementById('editUnitLabel').textContent = entry.type === 'protein' ? 'grams' : 'calories';
+  document.getElementById('editAmount').value = entry.amount;
+  document.getElementById('editName').value = entry.name;
+  openSheet(document.getElementById('editPanel'));
+}
+
+function saveEdit() {
+  const entry = state.currentDay.entries.find(e => e.id === editingEntryId);
+  if (!entry) { closeSheet(); return; }
+  const amountInput = document.getElementById('editAmount');
+  const amount = parseFloat(amountInput.value);
+  if (!amount || amount <= 0) {
+    amountInput.classList.add('invalid');
+    setTimeout(() => amountInput.classList.remove('invalid'), 600);
+    return;
+  }
+  entry.amount = Math.round(amount * 10) / 10;
+  entry.name = document.getElementById('editName').value.trim();
+  save();
+  renderToday();
+  closeSheet();
+}
+
+function deleteEditEntry() {
+  if (editingEntryId) deleteEntry(editingEntryId);
+  closeSheet();
 }
 
 function formatHistoryDate(dateStr) {
@@ -361,31 +478,35 @@ function renderEntries() {
     const li = document.createElement('li');
     li.className = 'entry';
     const time = new Date(entry.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const isProtein = entry.type === 'protein';
+    const amountLabel = isProtein ? `${entry.amount.toLocaleString()}g` : entry.amount.toLocaleString();
     li.innerHTML = `
-      <span class="entry-cal">${entry.calories.toLocaleString()}</span>
+      <span class="entry-amount${isProtein ? ' protein' : ''}">${amountLabel}</span>
       <span class="entry-name">${escapeHtml(entry.name) || '&mdash;'}</span>
       <span class="entry-time">${time}</span>
       <button class="entry-del" type="button" aria-label="Delete entry">&times;</button>
     `;
-    li.querySelector('.entry-del').addEventListener('click', () => deleteEntry(entry.id));
+    li.querySelector('.entry-del').addEventListener('click', (ev) => { ev.stopPropagation(); deleteEntry(entry.id); });
+    li.addEventListener('click', () => openEdit(entry.id));
     list.appendChild(li);
   }
 }
 
 function renderToday() {
   document.getElementById('dateLabel').textContent = 'Today · ' + formatHistoryDate(state.currentDay.date);
-  const total = state.currentDay.entries.reduce((s, e) => s + e.calories, 0);
-  document.getElementById('totalNum').textContent = Math.round(total).toLocaleString();
+  const totals = dayTotals(state.currentDay.entries);
+  document.getElementById('totalNum').textContent = Math.round(totals.calories).toLocaleString();
+  document.getElementById('proteinTotal').textContent = `${Math.round(totals.protein).toLocaleString()}g protein today`;
 
   const goal = state.settings.dailyGoal;
   const progressWrap = document.getElementById('progressWrap');
   if (goal) {
     progressWrap.classList.remove('hidden');
-    const pct = Math.min(total / goal, 1) * 100;
+    const pct = Math.min(totals.calories / goal, 1) * 100;
     const bar = document.getElementById('progressBar');
     bar.style.width = pct + '%';
-    bar.className = 'progress-bar' + (total > goal ? ' over' : pct >= 90 ? ' warn' : '');
-    const remaining = goal - total;
+    bar.className = 'progress-bar' + (totals.calories > goal ? ' over' : pct >= 90 ? ' warn' : '');
+    const remaining = goal - totals.calories;
     document.getElementById('progressLabel').textContent = remaining >= 0
       ? `${Math.round(remaining).toLocaleString()} left`
       : `${Math.round(-remaining).toLocaleString()} over`;
@@ -403,17 +524,24 @@ function renderHistory() {
     return;
   }
   for (const day of state.history) {
+    const totals = dayTotals(day.entries);
     const li = document.createElement('li');
     li.className = 'history-day';
     const header = document.createElement('div');
     header.className = 'history-header';
-    header.innerHTML = `<span>${formatHistoryDate(day.date)}</span><span>${Math.round(day.total).toLocaleString()} cal</span>`;
+    const totalsLabel = `${Math.round(totals.calories).toLocaleString()} cal` +
+      (totals.protein ? ` · ${Math.round(totals.protein).toLocaleString()}g protein` : '');
+    header.innerHTML = `<span>${formatHistoryDate(day.date)}</span><span>${totalsLabel}</span>`;
     const details = document.createElement('ul');
     details.className = 'history-entries hidden';
     details.innerHTML = day.entries
       .slice()
       .sort((a, b) => b.createdAt - a.createdAt)
-      .map(e => `<li><span>${e.calories.toLocaleString()}</span><span>${escapeHtml(e.name) || '&mdash;'}</span><span>${new Date(e.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span></li>`)
+      .map(e => {
+        const isProtein = e.type === 'protein';
+        const amountLabel = isProtein ? `${e.amount.toLocaleString()}g` : e.amount.toLocaleString();
+        return `<li><span class="${isProtein ? 'protein' : ''}">${amountLabel}</span><span>${escapeHtml(e.name) || '&mdash;'}</span><span>${new Date(e.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span></li>`;
+      })
       .join('');
     header.addEventListener('click', () => details.classList.toggle('hidden'));
     li.appendChild(header);
@@ -493,7 +621,7 @@ function handleImport(e) {
         fileInput.value = '';
         return;
       }
-      state = parsed;
+      state = migrateState(parsed);
       checkRollover();
       save();
       renderAll();
@@ -510,15 +638,10 @@ function switchTab(tab) {
   const today = tab === 'today';
   document.getElementById('todayView').classList.toggle('hidden', !today);
   document.getElementById('historyView').classList.toggle('hidden', today);
-  document.getElementById('addBar').classList.toggle('hidden', !today);
+  document.getElementById('bottomBar').classList.toggle('hidden', !today);
   document.getElementById('tabToday').classList.toggle('active', today);
   document.getElementById('tabHistory').classList.toggle('active', !today);
   if (!today) renderHistory();
-}
-
-function toggleSettings(show) {
-  document.getElementById('settingsPanel').classList.toggle('hidden', !show);
-  document.getElementById('settingsBackdrop').classList.toggle('hidden', !show);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -527,11 +650,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('addBar').addEventListener('submit', addEntry);
   document.getElementById('undoBtn').addEventListener('click', undoDelete);
-  document.getElementById('gearBtn').addEventListener('click', () => toggleSettings(true));
-  document.getElementById('closeSettings').addEventListener('click', () => toggleSettings(false));
-  document.getElementById('settingsBackdrop').addEventListener('click', () => toggleSettings(false));
+  document.getElementById('gearBtn').addEventListener('click', () => openSheet(document.getElementById('settingsPanel')));
+  document.getElementById('closeSettings').addEventListener('click', closeSheet);
+  document.getElementById('closeEdit').addEventListener('click', closeSheet);
+  document.getElementById('backdrop').addEventListener('click', closeSheet);
+  document.getElementById('saveEdit').addEventListener('click', saveEdit);
+  document.getElementById('deleteEditBtn').addEventListener('click', deleteEditEntry);
   document.getElementById('tabToday').addEventListener('click', () => switchTab('today'));
   document.getElementById('tabHistory').addEventListener('click', () => switchTab('history'));
+  document.getElementById('modeCal').addEventListener('click', () => setMode('calories'));
+  document.getElementById('modePro').addEventListener('click', () => setMode('protein'));
 
   document.getElementById('goalInput').addEventListener('change', (e) => {
     const v = parseInt(e.target.value, 10);
