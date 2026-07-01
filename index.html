@@ -86,19 +86,24 @@
   ul { list-style: none; margin: 0; padding: 0; }
   .entries-list { margin-top: 8px; padding-bottom: 12px; }
   .entry {
-    display: flex; align-items: center; gap: 10px;
-    background: var(--card); border-radius: 12px; padding: 12px 12px;
+    background: var(--card); border-radius: 12px; padding: 12px;
     margin-bottom: 8px; cursor: pointer;
   }
   .entry:active { background: #222226; }
-  .entry-amount { font-weight: 700; font-size: 16px; min-width: 56px; }
-  .entry-amount.protein { color: var(--protein); }
+  .entry-row { display: flex; align-items: center; gap: 10px; }
+  .entry-amount { font-weight: 700; font-size: 16px; white-space: nowrap; }
+  .entry-amount .ea-pro { color: var(--protein); font-size: 14px; margin-left: 3px; }
+  .entry-amount .ea-unit { color: var(--muted); font-weight: 500; font-size: 13px; margin-left: 4px; }
   .entry-name { flex: 1; color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .entry-time { color: var(--muted); font-size: 12px; }
   .entry-del {
     border: none; background: transparent; color: var(--muted);
-    font-size: 20px; width: 32px; height: 32px; line-height: 1;
+    font-size: 20px; width: 32px; height: 32px; line-height: 1; flex: 0 0 auto;
   }
+  .entry-detail { display: none; align-items: center; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .entry.expanded .entry-detail { display: flex; }
+  .entry-detail-pro { color: var(--protein); font-weight: 600; font-size: 14px; }
+  .entry-edit { border: none; background: transparent; color: var(--accent); font-weight: 600; font-size: 14px; padding: 4px 8px; margin-left: auto; }
   .empty { color: var(--muted); text-align: center; padding: 24px 0; font-size: 14px; }
 
   .bottom-bar {
@@ -112,24 +117,17 @@
     color: var(--text); border-radius: 14px; padding: 8px 12px; font-size: 13px; font-weight: 600;
   }
   .quick-item-chip .qi-stats { display: block; color: var(--muted); font-size: 11px; font-weight: 500; margin-top: 2px; }
-  .mode-toggle { display: flex; gap: 6px; margin-bottom: 8px; }
-  .mode-btn {
-    flex: 1; border: none; background: var(--card); color: var(--muted);
-    font-size: 13px; font-weight: 600; padding: 8px; border-radius: 8px;
-  }
-  .mode-btn.active { background: var(--accent); color: #04210c; }
-  .mode-btn#modePro.active { background: var(--protein); color: #04223f; }
-  .add-bar { display: flex; gap: 8px; }
+  .add-bar { display: flex; flex-direction: column; gap: 8px; }
+  .add-row { display: flex; gap: 8px; }
   .add-bar input {
     border: 1px solid var(--border); background: var(--card); color: var(--text);
-    border-radius: 12px; padding: 14px; font-size: 17px; min-width: 0;
+    border-radius: 12px; padding: 14px; font-size: 17px; min-width: 0; flex: 1;
   }
-  .add-bar input#amountInput { width: 38%; font-weight: 700; }
-  .add-bar input#nameInput { flex: 1; }
+  .add-bar input#calInput { font-weight: 700; }
   input.invalid { border-color: var(--danger); }
   .add-bar button {
     border: none; background: var(--accent); color: #04210c;
-    font-weight: 700; font-size: 17px; padding: 0 18px; border-radius: 12px;
+    font-weight: 700; font-size: 17px; padding: 0 22px; border-radius: 12px; flex: 0 0 auto;
   }
 
   .history-day { background: var(--card); border-radius: 12px; margin: 10px 0; overflow: hidden; }
@@ -237,14 +235,15 @@
 
   <div class="bottom-bar" id="bottomBar">
     <div class="quick-items hidden" id="quickItemsRow"></div>
-    <div class="mode-toggle">
-      <button type="button" id="modeCal" class="mode-btn active">Calories</button>
-      <button type="button" id="modePro" class="mode-btn">Protein</button>
-    </div>
     <form class="add-bar" id="addBar">
-      <input id="amountInput" type="number" inputmode="decimal" placeholder="Calories" required>
-      <input id="nameInput" type="text" placeholder="What (optional)" autocomplete="off">
-      <button type="submit">Add</button>
+      <div class="add-row">
+        <input id="calInput" type="number" inputmode="decimal" placeholder="Calories">
+        <input id="proteinInput" type="number" inputmode="decimal" placeholder="Protein (g)">
+      </div>
+      <div class="add-row">
+        <input id="nameInput" type="text" placeholder="What (optional)" autocomplete="off">
+        <button type="submit">Add</button>
+      </div>
     </form>
   </div>
 </div>
@@ -276,8 +275,11 @@
 
 <div class="settings-panel hidden" id="editPanel">
   <div class="settings-header"><span>Edit Entry</span><button type="button" id="closeEdit">Cancel</button></div>
-  <label>Amount (<span id="editUnitLabel">calories</span>)
-    <input id="editAmount" type="number" inputmode="decimal">
+  <label>Calories
+    <input id="editCal" type="number" inputmode="decimal">
+  </label>
+  <label>Protein (g)
+    <input id="editProtein" type="number" inputmode="decimal">
   </label>
   <label>Name
     <input id="editName" type="text" placeholder="Optional">
@@ -344,11 +346,23 @@ function defaultState() {
   };
 }
 
-// Backups/entries created before protein support stored {calories} with no
-// type; treat anything missing a type as a calorie entry under the new shape.
+// Entries now hold both calories and protein together: {id, calories, protein,
+// name, createdAt}. Older shapes are migrated: the very first version stored
+// {calories} only; the next stored {type:'calories'|'protein', amount}. Old
+// separate protein entries become protein-only combined entries (not merged
+// with a calorie entry, since we can't know which pairs went together).
 function migrateEntry(e) {
-  if (e.type) return e;
-  return { id: e.id, type: 'calories', amount: e.calories, name: e.name, createdAt: e.createdAt };
+  if (e.type === undefined && typeof e.calories === 'number' && typeof e.protein === 'number') return e;
+  if (e.type) {
+    return {
+      id: e.id,
+      calories: e.type === 'calories' ? e.amount : 0,
+      protein: e.type === 'protein' ? e.amount : 0,
+      name: e.name,
+      createdAt: e.createdAt
+    };
+  }
+  return { id: e.id, calories: e.calories || 0, protein: 0, name: e.name, createdAt: e.createdAt };
 }
 
 function migrateState(s) {
@@ -383,18 +397,18 @@ function save() {
 function dayTotals(entries) {
   let calories = 0, protein = 0;
   for (const e of entries) {
-    if (e.type === 'protein') protein += e.amount;
-    else calories += e.amount;
+    calories += e.calories || 0;
+    protein += e.protein || 0;
   }
   return { calories, protein };
 }
 
 let state = load();
-let currentMode = 'calories';
 let pendingDelete = null;
 let pendingDeleteTimeout = null;
 let editingEntryId = null;
 let openPanelEl = null;
+let expandedEntries = new Set();
 
 function checkRollover() {
   const logical = getLogicalDateNY();
@@ -406,49 +420,43 @@ function checkRollover() {
   save();
 }
 
-function setMode(mode) {
-  currentMode = mode;
-  const isCal = mode === 'calories';
-  document.getElementById('modeCal').classList.toggle('active', isCal);
-  document.getElementById('modePro').classList.toggle('active', !isCal);
-  const amountInput = document.getElementById('amountInput');
-  amountInput.placeholder = isCal ? 'Calories' : 'Protein (g)';
-}
-
 function addEntry(e) {
   e.preventDefault();
   checkRollover();
-  const amountInput = document.getElementById('amountInput');
+  const calInput = document.getElementById('calInput');
+  const proteinInput = document.getElementById('proteinInput');
   const nameInput = document.getElementById('nameInput');
-  const amount = parseFloat(amountInput.value);
-  if (!amount || amount <= 0) {
-    amountInput.classList.add('invalid');
-    setTimeout(() => amountInput.classList.remove('invalid'), 600);
+  const calories = parseFloat(calInput.value) || 0;
+  const protein = parseFloat(proteinInput.value) || 0;
+  if (calories <= 0 && protein <= 0) {
+    calInput.classList.add('invalid');
+    setTimeout(() => calInput.classList.remove('invalid'), 600);
     return;
   }
   state.currentDay.entries.push({
     id: uuid(),
-    type: currentMode,
+    calories: Math.round(calories * 10) / 10,
+    protein: Math.round(protein * 10) / 10,
     name: nameInput.value.trim(),
-    amount: Math.round(amount * 10) / 10,
     createdAt: Date.now()
   });
   save();
-  amountInput.value = '';
+  calInput.value = '';
+  proteinInput.value = '';
   nameInput.value = '';
   renderToday();
-  amountInput.focus();
+  calInput.focus();
 }
 
 function logQuickItem(item) {
   checkRollover();
-  const now = Date.now();
-  if (item.calories) {
-    state.currentDay.entries.push({ id: uuid(), type: 'calories', amount: item.calories, name: item.name, createdAt: now });
-  }
-  if (item.protein) {
-    state.currentDay.entries.push({ id: uuid(), type: 'protein', amount: item.protein, name: item.name, createdAt: now });
-  }
+  state.currentDay.entries.push({
+    id: uuid(),
+    calories: item.calories || 0,
+    protein: item.protein || 0,
+    name: item.name,
+    createdAt: Date.now()
+  });
   save();
   renderToday();
 }
@@ -466,8 +474,10 @@ function deleteEntry(id) {
 function showUndoToast(entry) {
   clearTimeout(pendingDeleteTimeout);
   const toast = document.getElementById('toast');
-  const label = entry.type === 'protein' ? `${entry.amount.toLocaleString()}g protein` : `${entry.amount.toLocaleString()} cal`;
-  toast.querySelector('.toast-msg').textContent = `Deleted ${label}`;
+  const parts = [];
+  if (entry.calories) parts.push(`${entry.calories.toLocaleString()} cal`);
+  if (entry.protein) parts.push(`${entry.protein.toLocaleString()}g protein`);
+  toast.querySelector('.toast-msg').textContent = `Deleted ${parts.join(' + ')}`;
   toast.classList.add('show');
   pendingDeleteTimeout = setTimeout(() => {
     toast.classList.remove('show');
@@ -503,8 +513,8 @@ function openEdit(id) {
   const entry = state.currentDay.entries.find(e => e.id === id);
   if (!entry) return;
   editingEntryId = id;
-  document.getElementById('editUnitLabel').textContent = entry.type === 'protein' ? 'grams' : 'calories';
-  document.getElementById('editAmount').value = entry.amount;
+  document.getElementById('editCal').value = entry.calories || '';
+  document.getElementById('editProtein').value = entry.protein || '';
   document.getElementById('editName').value = entry.name;
   openSheet(document.getElementById('editPanel'));
 }
@@ -512,14 +522,17 @@ function openEdit(id) {
 function saveEdit() {
   const entry = state.currentDay.entries.find(e => e.id === editingEntryId);
   if (!entry) { closeSheet(); return; }
-  const amountInput = document.getElementById('editAmount');
-  const amount = parseFloat(amountInput.value);
-  if (!amount || amount <= 0) {
-    amountInput.classList.add('invalid');
-    setTimeout(() => amountInput.classList.remove('invalid'), 600);
+  const calInput = document.getElementById('editCal');
+  const proteinInput = document.getElementById('editProtein');
+  const calories = parseFloat(calInput.value) || 0;
+  const protein = parseFloat(proteinInput.value) || 0;
+  if (calories <= 0 && protein <= 0) {
+    calInput.classList.add('invalid');
+    setTimeout(() => calInput.classList.remove('invalid'), 600);
     return;
   }
-  entry.amount = Math.round(amount * 10) / 10;
+  entry.calories = Math.round(calories * 10) / 10;
+  entry.protein = Math.round(protein * 10) / 10;
   entry.name = document.getElementById('editName').value.trim();
   save();
   renderToday();
@@ -548,19 +561,49 @@ function renderEntries() {
   for (const entry of entries) {
     const li = document.createElement('li');
     li.className = 'entry';
+    const expanded = expandedEntries.has(entry.id);
+    if (expanded) li.classList.add('expanded');
     const time = new Date(entry.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    const isProtein = entry.type === 'protein';
-    const amountLabel = isProtein ? `${entry.amount.toLocaleString()}g` : entry.amount.toLocaleString();
+    const cal = entry.calories || 0;
+    const pro = entry.protein || 0;
+
+    let amountHtml;
+    if (expanded) {
+      amountHtml = cal > 0
+        ? `${cal.toLocaleString()}<span class="ea-unit">calories</span>`
+        : `<span class="ea-pro">${pro.toLocaleString()}g</span><span class="ea-unit">protein</span>`;
+    } else if (cal > 0 && pro > 0) {
+      amountHtml = `${cal.toLocaleString()}<span class="ea-pro">+${pro.toLocaleString()}g</span>`;
+    } else if (cal > 0) {
+      amountHtml = `${cal.toLocaleString()}`;
+    } else {
+      amountHtml = `<span class="ea-pro">${pro.toLocaleString()}g</span>`;
+    }
+    const showDetailPro = expanded && cal > 0 && pro > 0;
+
     li.innerHTML = `
-      <span class="entry-amount${isProtein ? ' protein' : ''}">${amountLabel}</span>
-      <span class="entry-name">${escapeHtml(entry.name) || '&mdash;'}</span>
-      <span class="entry-time">${time}</span>
-      <button class="entry-del" type="button" aria-label="Delete entry">&times;</button>
+      <div class="entry-row">
+        <span class="entry-amount">${amountHtml}</span>
+        <span class="entry-name">${escapeHtml(entry.name) || '&mdash;'}</span>
+        <span class="entry-time">${time}</span>
+        <button class="entry-del" type="button" aria-label="Delete entry">&times;</button>
+      </div>
+      <div class="entry-detail">
+        ${showDetailPro ? `<span class="entry-detail-pro">${pro.toLocaleString()}g protein</span>` : ''}
+        <button class="entry-edit" type="button">Edit</button>
+      </div>
     `;
     li.querySelector('.entry-del').addEventListener('click', (ev) => { ev.stopPropagation(); deleteEntry(entry.id); });
-    li.addEventListener('click', () => openEdit(entry.id));
+    li.querySelector('.entry-edit').addEventListener('click', (ev) => { ev.stopPropagation(); openEdit(entry.id); });
+    li.querySelector('.entry-row').addEventListener('click', () => toggleExpand(entry.id));
     list.appendChild(li);
   }
+}
+
+function toggleExpand(id) {
+  if (expandedEntries.has(id)) expandedEntries.delete(id);
+  else expandedEntries.add(id);
+  renderEntries();
 }
 
 function renderToday() {
@@ -625,9 +668,12 @@ function renderHistory() {
       .slice()
       .sort((a, b) => b.createdAt - a.createdAt)
       .map(e => {
-        const isProtein = e.type === 'protein';
-        const amountLabel = isProtein ? `${e.amount.toLocaleString()}g` : e.amount.toLocaleString();
-        return `<li><span class="${isProtein ? 'protein' : ''}">${amountLabel}</span><span>${escapeHtml(e.name) || '&mdash;'}</span><span>${new Date(e.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span></li>`;
+        const cal = e.calories || 0, pro = e.protein || 0;
+        let amt;
+        if (cal > 0 && pro > 0) amt = `${cal.toLocaleString()}<span class="protein"> +${pro.toLocaleString()}g</span>`;
+        else if (cal > 0) amt = `${cal.toLocaleString()}`;
+        else amt = `<span class="protein">${pro.toLocaleString()}g</span>`;
+        return `<li><span>${amt}</span><span>${escapeHtml(e.name) || '&mdash;'}</span><span>${new Date(e.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span></li>`;
       })
       .join('');
     header.addEventListener('click', () => details.classList.toggle('hidden'));
@@ -809,8 +855,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('deleteEditBtn').addEventListener('click', deleteEditEntry);
   document.getElementById('tabToday').addEventListener('click', () => switchTab('today'));
   document.getElementById('tabHistory').addEventListener('click', () => switchTab('history'));
-  document.getElementById('modeCal').addEventListener('click', () => setMode('calories'));
-  document.getElementById('modePro').addEventListener('click', () => setMode('protein'));
 
   document.getElementById('goalInput').addEventListener('change', (e) => {
     const v = parseInt(e.target.value, 10);
