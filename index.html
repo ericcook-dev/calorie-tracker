@@ -94,6 +94,13 @@
     padding: 8px 16px calc(env(safe-area-inset-bottom) + 10px);
     background: var(--bg); border-top: 1px solid var(--border);
   }
+  .quick-items { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; -webkit-overflow-scrolling: touch; }
+  .quick-items.hidden { display: none; }
+  .quick-item-chip {
+    flex: 0 0 auto; text-align: left; border: 1px solid var(--border); background: var(--card);
+    color: var(--text); border-radius: 14px; padding: 8px 12px; font-size: 13px; font-weight: 600;
+  }
+  .quick-item-chip .qi-stats { display: block; color: var(--muted); font-size: 11px; font-weight: 500; margin-top: 2px; }
   .mode-toggle { display: flex; gap: 6px; margin-bottom: 8px; }
   .mode-btn {
     flex: 1; border: none; background: var(--card); color: var(--muted);
@@ -145,6 +152,19 @@
   }
   .settings-header button { border: none; background: transparent; color: var(--accent); font-size: 16px; font-weight: 600; }
   .settings-panel label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+  .quick-item-row {
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; margin-bottom: 8px; font-size: 14px; color: var(--text);
+  }
+  .quick-item-row .qi-info-stats { color: var(--muted); font-size: 12px; }
+  .qi-remove { border: none; background: transparent; color: var(--muted); font-size: 18px; width: 28px; height: 28px; flex: 0 0 auto; }
+  .qi-add-form { display: flex; gap: 6px; margin-bottom: 16px; }
+  .qi-add-form input {
+    flex: 1; min-width: 0; border: 1px solid var(--border); background: var(--bg);
+    color: var(--text); border-radius: 8px; padding: 10px; font-size: 14px;
+  }
+  .qi-add-form button { border: none; background: var(--accent); color: #04210c; font-weight: 700; border-radius: 8px; padding: 0 14px; font-size: 14px; }
   .settings-panel input[type=number], .settings-panel input[type=text] {
     display: block; width: 100%; margin-top: 6px;
     border: 1px solid var(--border); background: var(--bg); color: var(--text);
@@ -201,6 +221,7 @@
   </main>
 
   <div class="bottom-bar" id="bottomBar">
+    <div class="quick-items hidden" id="quickItemsRow"></div>
     <div class="mode-toggle">
       <button type="button" id="modeCal" class="mode-btn active">Calories</button>
       <button type="button" id="modePro" class="mode-btn">Protein</button>
@@ -219,6 +240,15 @@
   <div class="settings-header"><span>Settings</span><button type="button" id="closeSettings">Done</button></div>
   <label>Daily goal (calories)
     <input id="goalInput" type="number" inputmode="numeric" placeholder="No goal set">
+  </label>
+  <label>Quick Items
+    <div id="quickItemsSettingsList" style="margin-top:8px"></div>
+    <div class="qi-add-form">
+      <input id="qiName" type="text" placeholder="Name">
+      <input id="qiCal" type="number" inputmode="decimal" placeholder="Cal">
+      <input id="qiProtein" type="number" inputmode="decimal" placeholder="Protein g">
+      <button type="button" id="qiAddBtn">Add</button>
+    </div>
   </label>
   <div class="backup-row" id="backupStatus">No backup yet</div>
   <div class="settings-buttons">
@@ -286,11 +316,15 @@ function getLogicalDateNY(now) {
   return `${y}-${m}-${dd}`;
 }
 
+function defaultQuickItems() {
+  return [{ id: uuid(), name: 'Protein shake (2%)', calories: 420, protein: 62 }];
+}
+
 function defaultState() {
   return {
     currentDay: { date: getLogicalDateNY(), entries: [] },
     history: [],
-    settings: { dailyGoal: 3800, goalDefaulted: true, lastBackup: null }
+    settings: { dailyGoal: 3800, goalDefaulted: true, lastBackup: null, quickItems: defaultQuickItems() }
   };
 }
 
@@ -308,6 +342,9 @@ function migrateState(s) {
     s.settings.dailyGoal = 3800;
   }
   s.settings.goalDefaulted = true;
+  if (!s.settings.quickItems) {
+    s.settings.quickItems = defaultQuickItems();
+  }
   return s;
 }
 
@@ -385,6 +422,19 @@ function addEntry(e) {
   nameInput.value = '';
   renderToday();
   amountInput.focus();
+}
+
+function logQuickItem(item) {
+  checkRollover();
+  const now = Date.now();
+  if (item.calories) {
+    state.currentDay.entries.push({ id: uuid(), type: 'calories', amount: item.calories, name: item.name, createdAt: now });
+  }
+  if (item.protein) {
+    state.currentDay.entries.push({ id: uuid(), type: 'protein', amount: item.protein, name: item.name, createdAt: now });
+  }
+  save();
+  renderToday();
 }
 
 function deleteEntry(id) {
@@ -573,10 +623,73 @@ function renderBackupStatus() {
   }
 }
 
+function renderQuickItems() {
+  const wrap = document.getElementById('quickItemsRow');
+  const items = state.settings.quickItems || [];
+  wrap.innerHTML = '';
+  wrap.classList.toggle('hidden', items.length === 0);
+  for (const item of items) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'quick-item-chip';
+    const parts = [];
+    if (item.calories) parts.push(`${item.calories.toLocaleString()} cal`);
+    if (item.protein) parts.push(`${item.protein.toLocaleString()}g protein`);
+    chip.innerHTML = `${escapeHtml(item.name)}<span class="qi-stats">${parts.join(' · ')}</span>`;
+    chip.addEventListener('click', () => logQuickItem(item));
+    wrap.appendChild(chip);
+  }
+}
+
+function renderQuickItemsSettings() {
+  const list = document.getElementById('quickItemsSettingsList');
+  const items = state.settings.quickItems || [];
+  list.innerHTML = '';
+  if (items.length === 0) {
+    list.innerHTML = '<div class="empty" style="padding:8px 0;">No quick items yet</div>';
+    return;
+  }
+  for (const item of items) {
+    const parts = [];
+    if (item.calories) parts.push(`${item.calories} cal`);
+    if (item.protein) parts.push(`${item.protein}g protein`);
+    const row = document.createElement('div');
+    row.className = 'quick-item-row';
+    row.innerHTML = `<span>${escapeHtml(item.name)} <span class="qi-info-stats">(${parts.join(' · ')})</span></span><button type="button" class="qi-remove" aria-label="Remove quick item">&times;</button>`;
+    row.querySelector('.qi-remove').addEventListener('click', () => {
+      state.settings.quickItems = state.settings.quickItems.filter((i) => i.id !== item.id);
+      save();
+      renderQuickItemsSettings();
+      renderQuickItems();
+    });
+    list.appendChild(row);
+  }
+}
+
+function addQuickItem() {
+  const nameInput = document.getElementById('qiName');
+  const calInput = document.getElementById('qiCal');
+  const proteinInput = document.getElementById('qiProtein');
+  const name = nameInput.value.trim();
+  const calories = parseFloat(calInput.value) || 0;
+  const protein = parseFloat(proteinInput.value) || 0;
+  if (!name || (!calories && !protein)) return;
+  if (!state.settings.quickItems) state.settings.quickItems = [];
+  state.settings.quickItems.push({ id: uuid(), name, calories, protein });
+  save();
+  nameInput.value = '';
+  calInput.value = '';
+  proteinInput.value = '';
+  renderQuickItemsSettings();
+  renderQuickItems();
+}
+
 function renderAll() {
   renderToday();
   renderHistory();
   renderBackupStatus();
+  renderQuickItems();
+  renderQuickItemsSettings();
   document.getElementById('goalInput').value = state.settings.dailyGoal || '';
 }
 
@@ -672,6 +785,8 @@ document.addEventListener('DOMContentLoaded', () => {
     save();
     renderToday();
   });
+
+  document.getElementById('qiAddBtn').addEventListener('click', addQuickItem);
 
   document.getElementById('exportBtn').addEventListener('click', exportBackup);
   document.getElementById('importBtn').addEventListener('click', () => document.getElementById('fileInput').click());
