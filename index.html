@@ -21,8 +21,9 @@
     --muted: #8b8b92;
     --accent: #34c759;
     --protein: #4da3ff;
-    --warn: #ffb340;
+    --warn: #ff8c42;
     --danger: #ff453a;
+    --progress-base: #f2a541;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
@@ -66,7 +67,7 @@
   .progress-wrap { margin: 10px 0 4px; }
   .progress-wrap.hidden { display: none; }
   .progress-track { height: 8px; background: var(--card); border-radius: 4px; overflow: hidden; }
-  .progress-bar { height: 100%; background: var(--accent); border-radius: 4px; transition: width .2s ease; }
+  .progress-bar { height: 100%; background: var(--progress-base); border-radius: 4px; transition: width .2s ease; }
   .progress-bar.warn { background: var(--warn); }
   .progress-bar.over { background: var(--danger); }
   .progress-label { text-align: center; font-size: 12px; color: var(--muted); margin-top: 6px; }
@@ -289,7 +290,7 @@ function defaultState() {
   return {
     currentDay: { date: getLogicalDateNY(), entries: [] },
     history: [],
-    settings: { dailyGoal: null, lastBackup: null }
+    settings: { dailyGoal: 3800, goalDefaulted: true, lastBackup: null }
   };
 }
 
@@ -303,6 +304,10 @@ function migrateEntry(e) {
 function migrateState(s) {
   s.currentDay.entries = s.currentDay.entries.map(migrateEntry);
   s.history.forEach((day) => { day.entries = day.entries.map(migrateEntry); });
+  if (s.settings.dailyGoal == null && !s.settings.goalDefaulted) {
+    s.settings.dailyGoal = 3800;
+  }
+  s.settings.goalDefaulted = true;
   return s;
 }
 
