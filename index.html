@@ -58,6 +58,17 @@
   .view { flex: 1; overflow-y: auto; padding: 0 16px; -webkit-overflow-scrolling: touch; }
   .view.hidden { display: none; }
 
+  .backup-banner {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: rgba(255,140,66,0.12); border: 1px solid var(--warn); color: var(--warn);
+    border-radius: 10px; padding: 10px 12px; font-size: 13px; margin: 8px 0 0;
+  }
+  .backup-banner.hidden { display: none; }
+  .backup-banner button {
+    border: none; background: var(--warn); color: #2b1400; font-weight: 700;
+    border-radius: 8px; padding: 6px 10px; font-size: 12px; white-space: nowrap; flex: 0 0 auto;
+  }
+  .backup-warning-note { font-size: 11px; color: var(--muted); margin: -6px 0 16px; line-height: 1.4; }
   .total-block { text-align: center; padding: 8px 0 14px; }
   .total-num { font-size: 56px; font-weight: 700; line-height: 1; letter-spacing: -1px; }
   .total-sub { color: var(--muted); font-size: 14px; margin-top: 2px; }
@@ -203,6 +214,10 @@
   </header>
 
   <main id="todayView" class="view">
+    <div class="backup-banner hidden" id="backupBanner">
+      <span id="backupBannerText"></span>
+      <button type="button" id="backupBannerBtn">Back Up Now</button>
+    </div>
     <div class="total-block">
       <div class="date-label" id="dateLabel">Today</div>
       <div class="total-num" id="totalNum">0</div>
@@ -251,6 +266,7 @@
     </div>
   </label>
   <div class="backup-row" id="backupStatus">No backup yet</div>
+  <div class="backup-warning-note">Your data lives only on this phone — export a backup regularly. To update the app, just close and reopen it; deleting the home screen icon erases all your data.</div>
   <div class="settings-buttons">
     <button type="button" class="btn" id="exportBtn">Export Backup</button>
     <button type="button" class="btn secondary" id="importBtn">Import Backup</button>
@@ -568,7 +584,23 @@ function renderToday() {
   } else {
     progressWrap.classList.add('hidden');
   }
+  renderBackupBanner();
   renderEntries();
+}
+
+function renderBackupBanner() {
+  const banner = document.getElementById('backupBanner');
+  const hasData = state.currentDay.entries.length > 0 || state.history.length > 0;
+  const last = state.settings.lastBackup;
+  const days = last ? Math.floor((Date.now() - last) / 86400000) : Infinity;
+  if (hasData && days >= 3) {
+    banner.classList.remove('hidden');
+    document.getElementById('backupBannerText').textContent = last
+      ? `No backup in ${days} days — your data only lives on this phone.`
+      : `You haven't backed up yet — your data only lives on this phone.`;
+  } else {
+    banner.classList.add('hidden');
+  }
 }
 
 function renderHistory() {
@@ -722,6 +754,7 @@ function markBackedUp() {
   state.settings.lastBackup = Date.now();
   save();
   renderBackupStatus();
+  renderBackupBanner();
 }
 
 function handleImport(e) {
@@ -788,6 +821,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('qiAddBtn').addEventListener('click', addQuickItem);
 
+  document.getElementById('backupBannerBtn').addEventListener('click', exportBackup);
   document.getElementById('exportBtn').addEventListener('click', exportBackup);
   document.getElementById('importBtn').addEventListener('click', () => document.getElementById('fileInput').click());
   document.getElementById('fileInput').addEventListener('change', handleImport);
